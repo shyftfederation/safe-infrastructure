@@ -32,7 +32,7 @@ services:
     image: redis:alpine
 
   txs-web:
-    image: gnosispm/safe-transaction-service:${TXS_VERSION}
+    image: shyft-tx-gateway
     env_file:
       - container_env_files/txs.env
     environment:
@@ -43,18 +43,22 @@ services:
     working_dir: /app
     volumes:
       - nginx-shared-txs:/nginx
-      - ./overrides/setup_service.py:/app/safe_transaction_service/history/management/commands/setup_service.py
+      - ${PWD}/overrides/safe.py:/usr/local/lib/python3.10/site-packages/gnosis/safe/safe.py
     command: docker/web/run_web.sh
-    ports:
-      - "5678:5678"
+    build:
+      context: /storage/shyft-txs
+      dockerfile: docker/web/Dockerfile
+
 
   txs-worker: &worker
-    image: gnosispm/safe-transaction-service:${TXS_VERSION}
+    image: shyft-tx-gateway
     env_file:
       - container_env_files/txs.env
     environment:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
       - GEVENT_SUPPORT=True
+    volumes:
+      - ${PWD}/overrides/safe.py:/usr/local/lib/python3.10/site-packages/gnosis/safe/safe.py
     depends_on:
       - db
       - txs-redis
@@ -64,6 +68,7 @@ services:
   txs-scheduler:
     <<: *worker
     command: docker/web/celery/scheduler/run.sh
+
 
 
   # Safe Config Service
@@ -94,12 +99,13 @@ services:
     #  context: /storage/safe-react/
     #  dockerfile: Dockerfile
   ui:
-    image: gnosispm/safe-react
+    image: shyft-ui
     env_file:
       - container_env_files/ui.env
     depends_on:
       - nginx
     ports:
       - "${REVERSE_PROXY_UI_PORT}:3000"
-
-
+    build:
+      context: /storage/shyft-ui/
+      dockerfile: Dockerfile
